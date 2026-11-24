@@ -1,0 +1,4 @@
+# Link the C runtime statically on Windows so HANGAR.exe needs no
+# Visual C++ Redistributable on the target machine.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
