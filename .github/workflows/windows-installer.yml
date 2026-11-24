@@ -1,7 +1,9 @@
 name: Windows installer
 
 # Builds HANGAR-Setup-<version>.exe, smoke-tests it (silent install, launch,
-# upgrade, silent uninstall) and, for a v* tag, publishes it as a GitHub Release.
+# upgrade, silent uninstall) and publishes it as a GitHub Release, either for a
+# pushed v* tag or when run by hand on main with "publish" ticked (the release
+# then creates tag v<Cargo.toml version> on that commit).
 # The release job only runs if the smoke test passed.
 
 on:
@@ -9,6 +11,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a release for the Cargo.toml version (main only)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -106,7 +113,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build            # only after the smoke test passed
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -119,7 +126,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: v${{ needs.build.outputs.version }}
+          SHA: ${{ github.sha }}
         run: |
           cd dist
           # Fixed name so releases/latest/download/HANGAR-Setup.exe always works.
@@ -133,4 +141,4 @@ jobs:
           Passed the automated smoke test (silent install, launch, in-place upgrade, silent uninstall) before publishing.
           NOTES
           sed -i 's/^          //' notes.md
-          gh release create "$TAG" HANGAR-Setup.exe SHA256SUMS.txt --title "HANGAR ${TAG#v}" --notes-file notes.md --verify-tag
+          gh release create "$TAG" HANGAR-Setup.exe SHA256SUMS.txt --title "HANGAR ${TAG#v}" --notes-file notes.md --target "$SHA"

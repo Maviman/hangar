@@ -26,7 +26,9 @@ Rust + egui/eframe (glow renderer). One self-contained exe: no runtime, no Pytho
 
 ## Releasing
 
-Bump `version` in `Cargo.toml`, merge, then push a tag `vX.Y.Z` that matches. The
+Bump `version` in `Cargo.toml`, merge, then either push a tag `vX.Y.Z` that matches,
+or run the `Windows installer` workflow by hand on `main` with **publish** ticked
+(Actions tab, Run workflow), which creates the tag for you. The
 `Windows installer` workflow builds the exe on `windows-latest`, compiles the Inno
 Setup script in `installer/`, runs `ci/smoke.ps1` (silent install, launch,
 in-place upgrade, silent uninstall) and only then publishes the release.
