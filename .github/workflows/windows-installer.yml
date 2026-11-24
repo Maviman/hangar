@@ -1,0 +1,136 @@
+name: Windows installer
+
+# Builds HANGAR-Setup-<version>.exe, smoke-tests it (silent install, launch,
+# upgrade, silent uninstall) and, for a v* tag, publishes it as a GitHub Release.
+# The release job only runs if the smoke test passed.
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, package, smoke test
+    runs-on: windows-latest
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version from Cargo.toml (and check it matches the tag)
+        id: ver
+        shell: pwsh
+        run: |
+          $m = Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+          if (-not $m) { throw 'No version in Cargo.toml' }
+          $v = $m.Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $tag = $env:GITHUB_REF_NAME.Substring(1)
+            if ($tag -ne $v) { throw "Tag v$tag does not match Cargo.toml version $v. Bump Cargo.toml, then tag." }
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Version $v"
+
+      - name: Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustc --version
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Unit tests
+        run: cargo test --locked
+
+      - name: Build release exe (static CRT, no VC++ runtime needed)
+        run: cargo build --release --locked
+
+      - name: Check the exe has no VC++ runtime dependency
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object { $_.FullName -like '*Hostx64\x64*' } | Select-Object -First 1
+          $deps = & $dumpbin.FullName /dependents target\release\hangar.exe
+          $deps | Write-Host
+          if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') { throw 'exe depends on the VC++ runtime; static CRT flag not applied' }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe not found after install' }
+
+      - name: Build Setup.exe
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" installer\hangar.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+          Get-ChildItem dist
+          Get-FileHash dist\*.exe -Algorithm SHA256 | Format-List
+
+      - name: Smoke test (silent install, launch, upgrade, silent uninstall)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./ci/smoke.ps1 -Setup "dist\HANGAR-Setup-${{ steps.ver.outputs.version }}.exe" -Version "${{ steps.ver.outputs.version }}"
+
+      - name: Upload installer logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-logs
+          path: |
+            install.log
+            upgrade.log
+          if-no-files-found: ignore
+
+      - name: Upload Setup.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: HANGAR-Setup
+          path: dist/HANGAR-Setup-${{ steps.ver.outputs.version }}.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build            # only after the smoke test passed
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: HANGAR-Setup
+          path: dist
+      - name: Create release and attach Setup.exe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd dist
+          # Fixed name so releases/latest/download/HANGAR-Setup.exe always works.
+          mv HANGAR-Setup-*.exe HANGAR-Setup.exe
+          sha256sum HANGAR-Setup.exe > SHA256SUMS.txt
+          cat > notes.md <<NOTES
+          Download **HANGAR-Setup.exe** below and run it. No admin rights needed.
+
+          The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info**, then **Run anyway**.
+
+          Passed the automated smoke test (silent install, launch, in-place upgrade, silent uninstall) before publishing.
+          NOTES
+          sed -i 's/^          //' notes.md
+          gh release create "$TAG" HANGAR-Setup.exe SHA256SUMS.txt --title "HANGAR ${TAG#v}" --notes-file notes.md --verify-tag

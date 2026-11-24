@@ -4,7 +4,32 @@ A tiny native launcher for Windows. Drag `.exe`, `.lnk`, `.html`, `.bat` (or any
 file/folder) onto the grid; they dock as bubbles orbiting named clusters you can
 pan, zoom and arrange. Click a bubble to launch it.
 
-Rust + egui/eframe (glow renderer). Single 4.6 MB exe, no installer, no runtime.
+Rust + egui/eframe (glow renderer). One self-contained exe: no runtime, no Python, no VC++ redistributable.
+
+![HANGAR overview](docs/overview.png)
+
+## Install
+
+1. Download [`HANGAR-Setup.exe`](../../releases/latest/download/HANGAR-Setup.exe) from the [latest release](../../releases/latest).
+2. Run it. It installs for your user only (`%LOCALAPPDATA%\Programs\Hangar`), so there is no admin prompt.
+3. Pick options in the wizard: Send To menu entry, start with Windows, desktop shortcut.
+
+**SmartScreen:** the installer is not code-signed, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. If your browser blocks the download, choose **Keep** in its downloads list. You can check the file against `SHA256SUMS.txt` from the release with `Get-FileHash` in PowerShell.
+
+**Requirements:** Windows 10 or 11, 64-bit, and a graphics driver with OpenGL 2.0+ (any normal NVIDIA, AMD or Intel driver). The installer tests this at the end and tells you if the driver is the problem.
+
+**Upgrade:** run a newer `HANGAR-Setup` over the old one. It upgrades in place and keeps your layout.
+
+**Uninstall:** Settings > Apps > Installed apps > HANGAR. It asks whether to also delete your layout (`%APPDATA%\Hangar`); the default keeps it.
+
+**Unattended:** `HANGAR-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`; uninstall with `unins000.exe /VERYSILENT` (add `/PURGEDATA` to also delete the layout).
+
+## Releasing
+
+Bump `version` in `Cargo.toml`, merge, then push a tag `vX.Y.Z` that matches. The
+`Windows installer` workflow builds the exe on `windows-latest`, compiles the Inno
+Setup script in `installer/`, runs `ci/smoke.ps1` (silent install, launch,
+in-place upgrade, silent uninstall) and only then publishes the release.
 
 ## Use
 
@@ -53,6 +78,8 @@ HANGAR never touches the files on disk. The window size is remembered.
 ```
 # native (Windows, MSVC or GNU)
 cargo build --release
+# installer (needs Inno Setup 6)
+ISCC /DAppVersion=0.2.0 installer\hangar.iss
 # cross from Linux
 rustup target add x86_64-pc-windows-gnu
 sudo apt install gcc-mingw-w64-x86-64
