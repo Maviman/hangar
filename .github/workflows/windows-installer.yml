@@ -122,13 +122,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           cd dist
-          sha256sum HANGAR-Setup-*.exe > SHA256SUMS.txt
+          # Fixed name so releases/latest/download/HANGAR-Setup.exe always works.
+          mv HANGAR-Setup-*.exe HANGAR-Setup.exe
+          sha256sum HANGAR-Setup.exe > SHA256SUMS.txt
           cat > notes.md <<NOTES
-          Download **HANGAR-Setup-${TAG#v}.exe** below and run it. No admin rights needed.
+          Download **HANGAR-Setup.exe** below and run it. No admin rights needed.
 
           The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info**, then **Run anyway**.
 
           Passed the automated smoke test (silent install, launch, in-place upgrade, silent uninstall) before publishing.
           NOTES
           sed -i 's/^          //' notes.md
-          gh release create "$TAG" HANGAR-Setup-*.exe SHA256SUMS.txt --title "HANGAR ${TAG#v}" --notes-file notes.md --verify-tag
+          gh release create "$TAG" HANGAR-Setup.exe SHA256SUMS.txt --title "HANGAR ${TAG#v}" --notes-file notes.md --verify-tag

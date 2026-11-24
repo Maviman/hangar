@@ -87,7 +87,9 @@ $unins = Get-ChildItem $appDir -Filter 'unins*.exe' | Select-Object -First 1
 Assert ($null -ne $unins) 'uninstaller present'
 $code = Run $unins.FullName '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART'
 Assert ($code -eq 0) "uninstaller exit code 0 (got $code)"
-Start-Sleep -Seconds 3   # the uninstaller finishes from a temp copy
+# The uninstaller hands over to a temp copy and returns early: wait until it is really gone.
+$deadline = (Get-Date).AddSeconds(60)
+while ((Test-Path $appDir) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
 Assert (-not (Test-Path $exe)) 'HANGAR.exe removed'
 Assert (-not (Test-Path $appDir)) 'install folder removed'
 Assert (-not (Test-Path $startLnk)) 'Start Menu shortcut removed'
@@ -101,7 +103,9 @@ $code = Run $Setup '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'
 Assert ($code -eq 0) 'reinstall for purge test'
 $unins = Get-ChildItem $appDir -Filter 'unins*.exe' | Select-Object -First 1
 $code = Run $unins.FullName '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /PURGEDATA'
-Start-Sleep -Seconds 3
+# The uninstaller hands over to a temp copy and returns early: wait until it is really gone.
+$deadline = (Get-Date).AddSeconds(60)
+while ((Test-Path $appDir) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
 Assert ($code -eq 0) 'uninstall with /PURGEDATA exit code 0'
 Assert (-not (Test-Path $dataDir)) 'user data removed when opted in'
 

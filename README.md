@@ -10,7 +10,7 @@ Rust + egui/eframe (glow renderer). One self-contained exe: no runtime, no Pytho
 
 ## Install
 
-1. Open the [latest release](../../releases/latest) and download `HANGAR-Setup-<version>.exe`.
+1. Download [`HANGAR-Setup.exe`](../../releases/latest/download/HANGAR-Setup.exe) from the [latest release](../../releases/latest).
 2. Run it. It installs for your user only (`%LOCALAPPDATA%\Programs\Hangar`), so there is no admin prompt.
 3. Pick options in the wizard: Send To menu entry, start with Windows, desktop shortcut.
 
@@ -22,7 +22,7 @@ Rust + egui/eframe (glow renderer). One self-contained exe: no runtime, no Pytho
 
 **Uninstall:** Settings > Apps > Installed apps > HANGAR. It asks whether to also delete your layout (`%APPDATA%\Hangar`); the default keeps it.
 
-**Unattended:** `HANGAR-Setup-x.y.z.exe /VERYSILENT /SUPPRESSMSGBOXES`; uninstall with `unins000.exe /VERYSILENT` (add `/PURGEDATA` to also delete the layout).
+**Unattended:** `HANGAR-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`; uninstall with `unins000.exe /VERYSILENT` (add `/PURGEDATA` to also delete the layout).
 
 ## Releasing
 
